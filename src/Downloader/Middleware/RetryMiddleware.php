@@ -76,12 +76,23 @@ final class RetryMiddleware implements ResponseMiddlewareInterface
             return $backoff * 1000;
         }
 
-        if (
-            !\is_array($backoff)
-            || [] === $backoff
-            || \count($backoff) !== \count(\array_filter($backoff, 'is_int'))
-        ) {
-            throw new InvalidArgumentException('backoff must be an integer or a non-empty array of integers.');
+        if (!\is_array($backoff)) {
+            throw new InvalidArgumentException(
+                'backoff must be an integer or array, ' . \gettype($backoff) . ' given.',
+            );
+        }
+
+        if ([] === $backoff) {
+            throw new InvalidArgumentException('backoff array cannot be empty.');
+        }
+
+        $nonIntegerValues = \array_filter($backoff, static fn ($value) => !\is_int($value));
+
+        if ([] !== $nonIntegerValues) {
+            throw new InvalidArgumentException(
+                'backoff array must contain only integers. Found: ' .
+                \implode(', ', \array_map('gettype', $nonIntegerValues)),
+            );
         }
 
         $delay = $backoff[$retryCount] ?? $backoff[\array_key_last($backoff)];

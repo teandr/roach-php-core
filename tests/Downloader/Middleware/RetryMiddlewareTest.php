@@ -138,18 +138,18 @@ final class RetryMiddlewareTest extends TestCase
     public static function invalidBackoffProvider(): array
     {
         return [
-            'empty array' => [[]],
-            'array with non-int' => [[1, 'a', 3]],
-            'string' => ['not-an-array'],
-            'float' => [1.23],
+            'empty array' => [[], 'backoff array cannot be empty.'],
+            'array with non-int' => [[1, 'a', 3], 'backoff array must contain only integers. Found: string'],
+            'string' => ['not-an-array', 'backoff must be an integer or array, string given.'],
+            'float' => [1.23, 'backoff must be an integer or array, double given.'],
         ];
     }
 
     #[DataProvider('invalidBackoffProvider')]
-    public function testThrowsExceptionOnInvalidBackoff(mixed $backoff): void
+    public function testThrowsExceptionOnInvalidBackoff(mixed $backoff, string $expectedMessage): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('backoff must be an integer or a non-empty array of integers.');
+        $this->expectExceptionMessage($expectedMessage);
 
         $response = $this->makeResponse(status: 500);
         $this->middleware->configure(['backoff' => $backoff]);
