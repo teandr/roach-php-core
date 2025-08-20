@@ -76,14 +76,12 @@ final class RetryMiddleware implements ResponseMiddlewareInterface
             return $backoff * 1000;
         }
 
-        if (!\is_array($backoff) || [] === $backoff) {
+        if (
+            !\is_array($backoff)
+            || [] === $backoff
+            || \count($backoff) !== \count(\array_filter($backoff, 'is_int'))
+        ) {
             throw new InvalidArgumentException('backoff must be an integer or a non-empty array of integers.');
-        }
-
-        foreach ($backoff as $value) {
-            if (!\is_int($value)) {
-                throw new InvalidArgumentException('backoff must be an integer or a non-empty array of integers.');
-            }
         }
 
         $delay = $backoff[$retryCount] ?? $backoff[\array_key_last($backoff)];
