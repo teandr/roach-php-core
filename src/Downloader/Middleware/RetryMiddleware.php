@@ -23,7 +23,7 @@ use RoachPHP\Http\Response;
 use RoachPHP\Scheduling\RequestSchedulerInterface;
 use RoachPHP\Support\Configurable;
 
-final class RetryMiddleware implements DownloaderMiddlewareInterface
+final class RetryMiddleware implements DownloaderMiddlewareInterface, ExceptionMiddlewareInterface
 {
     use Configurable;
 
@@ -63,10 +63,8 @@ final class RetryMiddleware implements DownloaderMiddlewareInterface
 
         /** @var int $retryCount */
         $retryCount = $request->getMeta('retry_count', 0);
-
         /** @var list<int> $retryOnStatus */
         $retryOnStatus = $this->option('retryOnStatus');
-
         /** @var int $maxRetries */
         $maxRetries = $this->option('maxRetries');
 

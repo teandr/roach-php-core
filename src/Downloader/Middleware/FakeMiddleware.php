@@ -23,32 +23,35 @@ use RoachPHP\Support\Configurable;
 /**
  * @internal
  */
-final class FakeMiddleware implements DownloaderMiddlewareInterface
+final class FakeMiddleware implements DownloaderMiddlewareInterface, ExceptionMiddlewareInterface
 {
     use Configurable;
 
     /**
-     * @var array Request[]
+     * @var array<int, Request>
      */
     private array $requestsHandled = [];
 
     /**
-     * @var array Response[]
+     * @var array<int, Response>
      */
     private array $responsesHandled = [];
 
     /**
-     * @param ?\Closure(Request): Request   $requestHandler
-     * @param ?\Closure(Response): Response $responseHandler
+     * @var array<int, RequestException>
+     */
+    private array $exceptionsHandled = [];
+
+    /**
+     * @param ?\Closure(Request): Request      $requestHandler
+     * @param ?\Closure(Response): Response    $responseHandler
+     * @param ?\Closure(RequestException): void $exceptionHandler
      */
     public function __construct(
         private ?\Closure $requestHandler = null,
         private ?\Closure $responseHandler = null,
+        private ?\Closure $exceptionHandler = null,
     ) {
-    }
-
-    public function handleException(RequestException $exception): void
-    {
     }
 
     public function handleRequest(Request $request): Request
@@ -71,6 +74,15 @@ final class FakeMiddleware implements DownloaderMiddlewareInterface
         }
 
         return $response;
+    }
+
+    public function handleException(RequestException $exception): void
+    {
+        $this->exceptionsHandled[] = $exception;
+
+        if (null !== $this->exceptionHandler) {
+            ($this->exceptionHandler)($exception);
+        }
     }
 
     public function assertRequestHandled(Request $request): void
@@ -101,5 +113,20 @@ final class FakeMiddleware implements DownloaderMiddlewareInterface
     public function assertNoResponseHandled(): void
     {
         Assert::assertEmpty($this->responsesHandled);
+    }
+
+    public function assertExceptionHandled(RequestException $exception): void
+    {
+        Assert::assertContains($exception, $this->exceptionsHandled);
+    }
+
+    public function assertExceptionNotHandled(RequestException $exception): void
+    {
+        Assert::assertNotContains($exception, $this->exceptionsHandled);
+    }
+
+    public function assertNoExceptionsHandled(): void
+    {
+        Assert::assertEmpty($this->exceptionsHandled);
     }
 }

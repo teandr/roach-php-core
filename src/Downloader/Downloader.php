@@ -17,6 +17,7 @@ use RoachPHP\Events\RequestDropped;
 use RoachPHP\Events\RequestSending;
 use RoachPHP\Events\ResponseDropped;
 use RoachPHP\Events\ResponseReceived;
+use RoachPHP\Downloader\Middleware\ExceptionMiddlewareInterface;
 use RoachPHP\Events\ResponseReceiving;
 use RoachPHP\Http\ClientInterface;
 use RoachPHP\Http\Request;
@@ -123,7 +124,9 @@ final class Downloader
     private function onException(RequestException $exception): void
     {
         foreach ($this->middleware as $middleware) {
-            $middleware->handleException($exception);
+            if ($middleware instanceof ExceptionMiddlewareInterface) {
+                $middleware->handleException($exception);
+            }
         }
     }
 
