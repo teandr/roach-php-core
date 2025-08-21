@@ -16,6 +16,7 @@ namespace RoachPHP\Downloader\Middleware;
 use PHPUnit\Framework\Assert;
 use RoachPHP\Downloader\DownloaderMiddlewareInterface;
 use RoachPHP\Http\Request;
+use RoachPHP\Http\RequestException;
 use RoachPHP\Http\Response;
 use RoachPHP\Support\Configurable;
 
@@ -44,6 +45,10 @@ final class FakeMiddleware implements DownloaderMiddlewareInterface
         private ?\Closure $requestHandler = null,
         private ?\Closure $responseHandler = null,
     ) {
+    }
+
+    public function handleException(RequestException $exception): void
+    {
     }
 
     public function handleRequest(Request $request): Request

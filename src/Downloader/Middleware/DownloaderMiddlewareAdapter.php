@@ -15,6 +15,7 @@ namespace RoachPHP\Downloader\Middleware;
 
 use RoachPHP\Downloader\DownloaderMiddlewareInterface;
 use RoachPHP\Http\Request;
+use RoachPHP\Http\RequestException;
 use RoachPHP\Http\Response;
 
 /**
@@ -22,6 +23,9 @@ use RoachPHP\Http\Response;
  */
 final class DownloaderMiddlewareAdapter implements DownloaderMiddlewareInterface
 {
+    public function handleException(RequestException $exception): void
+    {
+    }
     private function __construct(
         private RequestMiddlewareInterface|ResponseMiddlewareInterface $middleware,
     ) {

@@ -13,13 +13,17 @@ declare(strict_types=1);
 
 namespace RoachPHP\Downloader\Middleware;
 
+use GuzzleHttp\Exception\ConnectException;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
+use RoachPHP\Downloader\DownloaderMiddlewareInterface;
+use RoachPHP\Http\Request;
+use RoachPHP\Http\RequestException;
 use RoachPHP\Http\Response;
 use RoachPHP\Scheduling\RequestSchedulerInterface;
 use RoachPHP\Support\Configurable;
 
-final class RetryMiddleware implements ResponseMiddlewareInterface
+final class RetryMiddleware implements DownloaderMiddlewareInterface
 {
     use Configurable;
 
@@ -27,6 +31,30 @@ final class RetryMiddleware implements ResponseMiddlewareInterface
         private readonly RequestSchedulerInterface $scheduler,
         private readonly LoggerInterface $logger,
     ) {
+    }
+
+    public function handleRequest(Request $request): Request
+    {
+        return $request;
+    }
+
+    public function handleException(RequestException $exception): void
+    {
+        if (!$this->option('retryOnConnectionFailure')) {
+            return;
+        }
+
+        if ($exception->getPrevious() instanceof ConnectException) {
+            $request = $exception->getRequest();
+            /** @var int $retryCount */
+            $retryCount = $request->getMeta('retry_count', 0);
+            /** @var int $maxRetries */
+            $maxRetries = $this->option('maxRetries');
+
+            if ($retryCount < $maxRetries) {
+                $this->retryRequest($request, $retryCount);
+            }
+        }
     }
 
     public function handleResponse(Response $response): Response
@@ -46,23 +74,7 @@ final class RetryMiddleware implements ResponseMiddlewareInterface
             return $response;
         }
 
-        $delay = $this->getDelay($retryCount);
-
-        $this->logger->info(
-            'Retrying request',
-            [
-                'uri' => $request->getUri(),
-                'status' => $response->getStatus(),
-                'retry_count' => $retryCount + 1,
-                'delay_ms' => $delay,
-            ],
-        );
-
-        $retryRequest = $request
-            ->withMeta('retry_count', $retryCount + 1)
-            ->addOption('delay', $delay);
-
-        $this->scheduler->schedule($retryRequest);
+        $this->retryRequest($request, $retryCount);
 
         return $response->drop('Request being retried');
     }
@@ -100,12 +112,34 @@ final class RetryMiddleware implements ResponseMiddlewareInterface
         return $delay * 1000;
     }
 
+    private function retryRequest(Request $request, int $retryCount): void
+    {
+        $delay = $this->getDelay($retryCount);
+
+        $this->logger->info(
+            'Retrying request',
+            [
+                'uri' => $request->getUri(),
+                'reason' => $request->getResponse()?->getStatus() ?? 'Connection error',
+                'retry_count' => $retryCount + 1,
+                'delay_ms' => $delay,
+            ],
+        );
+
+        $retryRequest = $request
+            ->withMeta('retry_count', $retryCount + 1)
+            ->addOption('delay', $delay);
+
+        $this->scheduler->schedule($retryRequest);
+    }
+
     private static function defaultOptions(): array
     {
         return [
             'retryOnStatus' => [500, 502, 503, 504],
             'maxRetries' => 3,
             'backoff' => [1, 5, 10],
+            'retryOnConnectionFailure' => false,
         ];
     }
 }

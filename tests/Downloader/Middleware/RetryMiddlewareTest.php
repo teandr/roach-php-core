@@ -13,10 +13,12 @@ declare(strict_types=1);
 
 namespace RoachPHP\Tests\Downloader\Middleware;
 
+use GuzzleHttp\Exception\ConnectException;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RoachPHP\Downloader\Middleware\RetryMiddleware;
+use RoachPHP\Http\RequestException;
 use RoachPHP\Scheduling\ArrayRequestScheduler;
 use RoachPHP\Scheduling\Timing\ClockInterface;
 use RoachPHP\Testing\Concerns\InteractsWithRequestsAndResponses;
@@ -155,5 +157,49 @@ final class RetryMiddlewareTest extends TestCase
         $this->middleware->configure(['backoff' => $backoff]);
 
         $this->middleware->handleResponse($response);
+    }
+
+    public function testRetriesRequestOnConnectionExceptionIfEnabled(): void
+    {
+        $this->middleware->configure([
+            'retryOnConnectionFailure' => true,
+            'maxRetries' => 2,
+            'backoff' => [1, 2, 3],
+        ]);
+        $request = $this->makeRequest('https://example.com');
+        $exception = new RequestException($request, new ConnectException('Could not connect', $request->getPsrRequest()));
+
+        $this->middleware->handleException($exception);
+
+        $retriedRequests = $this->scheduler->forceNextRequests(10);
+        self::assertCount(1, $retriedRequests);
+        $retriedRequest = $retriedRequests[0];
+        self::assertSame(1, $retriedRequest->getMeta('retry_count'));
+        self::assertSame(1000, $retriedRequest->getOptions()['delay']);
+    }
+
+    public function testDoesNotRetryRequestOnConnectionExceptionByDefault(): void
+    {
+        $this->middleware->configure([]);
+        $request = $this->makeRequest('https://example.com');
+        $exception = new RequestException($request, new ConnectException('Could not connect', $request->getPsrRequest()));
+
+        $this->middleware->handleException($exception);
+
+        self::assertCount(0, $this->scheduler->forceNextRequests(10));
+    }
+
+    public function testStopsRetryingConnectionErrorsAfterMaxRetries(): void
+    {
+        $this->middleware->configure([
+            'retryOnConnectionFailure' => true,
+            'maxRetries' => 3,
+        ]);
+        $request = $this->makeRequest('https://example.com')->withMeta('retry_count', 3);
+        $exception = new RequestException($request, new ConnectException('Could not connect', $request->getPsrRequest()));
+
+        $this->middleware->handleException($exception);
+
+        self::assertCount(0, $this->scheduler->forceNextRequests(10));
     }
 }

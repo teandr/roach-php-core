@@ -20,6 +20,7 @@ use RoachPHP\Events\ResponseReceived;
 use RoachPHP\Events\ResponseReceiving;
 use RoachPHP\Http\ClientInterface;
 use RoachPHP\Http\Request;
+use RoachPHP\Http\RequestException;
 use RoachPHP\Http\Response;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
@@ -108,9 +109,22 @@ final class Downloader
             return;
         }
 
-        $this->client->pool(\array_values($requests), function (Response $response) use ($callback): void {
-            $this->onResponseReceived($response, $callback);
-        });
+        $this->client->pool(
+            \array_values($requests),
+            function (Response $response) use ($callback): void {
+                $this->onResponseReceived($response, $callback);
+            },
+            function (RequestException $exception): void {
+                $this->onException($exception);
+            },
+        );
+    }
+
+    private function onException(RequestException $exception): void
+    {
+        foreach ($this->middleware as $middleware) {
+            $middleware->handleException($exception);
+        }
     }
 
     private function onResponseReceived(Response $response, ?callable $callback): void
